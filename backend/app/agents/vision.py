@@ -20,8 +20,9 @@ class ImageEmbedder(Protocol):
 
 
 def get_embedder() -> ImageEmbedder | None:
-    """Return an OpenCLIP-backed embedder here once the model is installed. None = not configured."""
-    return None
+    """OpenCLIP embedder when EMBEDDING_BACKEND=openclip and it loads; otherwise None (colour histogram)."""
+    from app.agents.embedders import load_embedder  # noqa: PLC0415
+    return load_embedder()
 
 
 class VisionIn(BaseModel):
@@ -64,5 +65,5 @@ class VisionAgent(Agent[VisionIn, VisionOut]):
         img = Image.open(io.BytesIO(get_storage().read(image.storage_path)))
         embedder = get_embedder()
         if embedder is not None:
-            return VisionOut(features={"kind": "embedding", "vector": embedder.embed(img)}, note="embedding")
+            return VisionOut(features={"kind": "embedding", "model": "openclip", "vector": embedder.embed(img)}, note="OpenCLIP embedding")
         return VisionOut(features=histogram_features(img), note="colour histogram (basic)")

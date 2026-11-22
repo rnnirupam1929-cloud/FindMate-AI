@@ -11,6 +11,7 @@ class MatchIn(BaseModel):
     found: dict
     location_score: float | None = None
     location_provided: bool = False
+    weights: dict[str, float] | None = None  # active weights; None = defaults
 
 
 class MatchOut(BaseModel):
@@ -27,6 +28,6 @@ class MatchingAgent(Agent[MatchIn, MatchOut]):
     def run(self, d: MatchIn) -> MatchOut:
         lost, found = ReportView(**d.lost), ReportView(**d.found)
         pre = {"location": d.location_score} if d.location_provided else None
-        res = score_pair(lost, found, precomputed=pre)
+        res = score_pair(lost, found, weights=d.weights, precomputed=pre)
         ok = is_plausible(res, lost, found, get_settings().match_threshold)
         return MatchOut(score=res.score, plausible=ok, breakdown=res.breakdown, reasons=res.reasons)

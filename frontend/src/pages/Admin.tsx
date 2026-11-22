@@ -13,7 +13,7 @@ import { cn } from "@/utils/cn";
 import { categoryLabel, formatDate, timeAgo } from "@/utils/format";
 import { ShieldCheck } from "lucide-react";
 
-type Tab = "overview" | "reports" | "verifications" | "users" | "institutions";
+type Tab = "overview" | "reports" | "verifications" | "users" | "institutions" | "learning";
 
 function Overview() {
   const q = useQuery({ queryKey: ["admin", "stats"], queryFn: Api.admin.stats });
@@ -129,17 +129,46 @@ function InstitutionsTab() {
   );
 }
 
+const SIGNALS: Record<string, string> = { visual: "Photo", description: "Description", category: "Category", location: "Location", date: "Date" };
+
+function LearningTab() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [confirm, setConfirm] = useState<"apply" | "reset" | null>(null);
+  const q = useQuery({ queryKey: ["admin", "learning"], queryFn: Api.admin.learning, enabled: user?.role === "admin" });
+  const done = (m: string) => { toast.success(m); setConfirm(null); void qc.invalidateQueries({ queryKey: ["admin", "learning"] }); };
+  const apply = useMutation({ mutationFn: Api.admin.applyWeights, onSuccess: () => done("New weights applied to future matches."), onError: (e: Error) => { toast.error(e.message); setConfirm(null); } });
+  const reset = useMutation({ mutationFn: Api.admin.resetWeights, onSuccess: () => done("Weights reset to defaults."), onError: (e: Error) => { toast.error(e.message); setConfirm(null); } });
+  if (user?.role !== "admin") return <p className="text-sm text-stone">Only administrators can change matching weights.</p>;
+  if (q.isLoading) return <Spinner />;
+  if (q.error || !q.data) return <ErrorState error={q.error} retry={() => q.refetch()} />;
+  const d = q.data;
+  const custom = Object.keys(d.current).some((k) => Math.abs(d.current[k] - d.defaults[k]) > 0.0005);
+  const pct = (n: number) => `${Math.round(n * 1000) / 10}%`;
+  return (
+    <div className="max-w-2xl space-y-6">
+      <p className="text-sm text-ink/80">The Learning Agent studies confirmed and dismissed matches and can <strong>suggest</strong> how much each signal should count. Nothing changes until you apply it, and it only affects matches created afterwards.</p>
+      <p className="text-sm" data-testid="learning-status">{d.status === "ready" ? "Enough feedback to suggest new weights." : `Not enough feedback yet: ${d.positive_examples} confirmed / ${d.negative_examples} rejected so far, ${d.needed_per_class} of each needed.`}</p>
+      <table className="w-full text-sm"><thead><tr className="border-b border-stone-300 text-left text-stone"><th className="py-2 font-semibold">Signal</th><th className="font-semibold">Default</th><th className="font-semibold">In use</th><th className="font-semibold">Suggested</th></tr></thead>
+        <tbody>{Object.keys(d.defaults).map((k) => <tr key={k} className="border-b border-stone-200"><td className="py-2">{SIGNALS[k] ?? k}</td><td>{pct(d.defaults[k])}</td><td className="font-semibold">{pct(d.current[k])}</td><td>{d.proposal ? pct(d.proposal[k]) : "–"}</td></tr>)}</tbody></table>
+      <div className="flex gap-2"><Button disabled={d.status !== "ready"} onClick={() => setConfirm("apply")}>Apply suggested weights</Button><Button variant="secondary" disabled={!custom} onClick={() => setConfirm("reset")}>Reset to defaults</Button></div>
+      <ConfirmDialog open={!!confirm} onOpenChange={(o) => !o && setConfirm(null)} title={confirm === "apply" ? "Apply suggested weights?" : "Reset to default weights?"} description={confirm === "apply" ? "Future matches will be scored with these weights. Existing matches keep their scores." : "Future matches go back to the default weights."} confirmLabel={confirm === "apply" ? "Apply" : "Reset"} loading={apply.isPending || reset.isPending} onConfirm={() => (confirm === "apply" ? apply.mutate() : reset.mutate())} />
+    </div>
+  );
+}
+
 export function AdminPage() {
   const { user } = useAuth();
   const [tab, setTab] = useState<Tab>("overview");
-  const tabs: [Tab, string][] = [["overview", "Overview"], ["reports", "Reports"], ["verifications", "Verifications"], ["users", "Users"], ["institutions", "Institutions"]];
+  const tabs: [Tab, string][] = [["overview", "Overview"], ["reports", "Reports"], ["verifications", "Verifications"], ["users", "Users"], ["institutions", "Institutions"], ...(user?.role === "admin" ? ([["learning", "Matching"]] as [Tab, string][]) : [])];
   return (
     <div>
       <PageHeader title="Admin" subtitle={user?.role === "admin" ? "Moderation and platform overview." : "Moderation tools for your institution."} />
       <div role="tablist" aria-label="Admin sections" className="mb-6 flex flex-wrap gap-1 rounded-md bg-stone-200/60 p-1 sm:inline-flex">
         {tabs.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={cn("rounded px-3 py-1.5 text-sm font-semibold", tab === k ? "bg-white text-forest shadow-sm" : "text-ink/70 hover:text-ink")}>{l}</button>)}
       </div>
-      {tab === "overview" && <Overview />}{tab === "reports" && <ReportsTab />}{tab === "verifications" && <VerificationsTab />}{tab === "users" && <UsersTab />}{tab === "institutions" && <InstitutionsTab />}
+      {tab === "overview" && <Overview />}{tab === "reports" && <ReportsTab />}{tab === "verifications" && <VerificationsTab />}{tab === "users" && <UsersTab />}{tab === "institutions" && <InstitutionsTab />}{tab === "learning" && <LearningTab />}
     </div>
   );
 }

@@ -34,11 +34,18 @@ If browsers can't be downloaded, set `PW_CHROMIUM_PATH` to an installed Chromium
 - **Backend (Render/Railway):** root `backend`, start `uvicorn app.main:app --host 0.0.0.0 --port $PORT`, env as in `.env.example` with `APP_ENV=production`, and `CORS_ORIGINS` set to the Vercel URL.
 
 ## What works
-Landing page, sign up/login/logout/forgot password (Supabase Auth), protected and role-based routes, multi-step lost/found reporting with drafts and photo upload (EXIF/GPS stripped, private signed URLs), My Reports (view/edit/close/reopen/delete with confirmation), hybrid matching engine with explanations and duplicate prevention, match review/dismiss/report, human-approved ownership verification with private clues and handover, notifications with read/unread, Leaflet/OSM map with approximate points, admin dashboard (stats, moderation, users, institutions), nine modular agents with logging, timeouts and retries.
+Landing page, sign up/login/logout/forgot password (Supabase Auth), protected and role-based routes, multi-step lost/found reporting with drafts and photo upload (EXIF/GPS stripped, private signed URLs), My Reports (view/edit/close/reopen/delete with confirmation), hybrid matching engine with explanations and duplicate prevention, match review/dismiss/report, human-approved ownership verification with private clues and handover, notifications with read/unread, Leaflet/OSM map with approximate points, admin dashboard (stats, moderation, users, institutions, matching weights), nine modular agents with logging, timeouts and retries.
 
-## Not done / needs credentials
-- **Visual similarity is a basic colour comparison, not OpenCLIP.** The Vision Agent has a clean interface for embeddings; the model is not integrated.
-- Description similarity is token-based, not semantic embeddings.
-- The Learning Agent records feedback only. It does not retrain or re-weight anything.
-- Supabase Auth email verification, password reset, Supabase Storage and Postgres/RLS were **not tested here** (no credentials). They are implemented and documented.
-- Not production-ready until the above is verified against a real Supabase project.
+AI details are in `docs/AI_SETUP.md`: synonym-aware description matching, optional OpenCLIP photo matching, and an admin-approved Learning Agent.
+
+## Before you can call it production-ready (needs your Supabase project)
+1. Run the three migrations in `database/migrations/`, set the env vars, switch `AUTH_MODE`/`STORAGE_BACKEND` to `supabase`.
+2. Run `python scripts/verify_supabase.py` (checks Auth, JWT, Postgres, private Storage and RLS). **It has not been run.**
+3. Email templates: `docs/SUPABASE_EMAIL_TEMPLATES.md`.
+4. Re-run the Playwright suite against a staging deployment (the bundled e2e uses local auth).
+
+## Known limits
+- OpenCLIP is integrated and falls back safely, but was **never run with real weights** (no access to Hugging Face in the build environment). Its calibration constants need tuning on real photos.
+- Description matching is lexical + synonyms, not semantic embeddings.
+- Only Chromium was tested.
+- Not deployed.

@@ -73,6 +73,9 @@ test.describe.serial("TEST 7 — permissions and admin", () => {
     await ap.getByLabel(/^Slug/).fill("test-institute");
     await ap.getByRole("button", { name: "Add institution" }).click();
     await expect(ap.getByTestId("admin-institutions")).toContainText("Test Institute");
+    await ap.getByRole("tab", { name: "Matching" }).click();
+    await expect(ap.getByTestId("learning-status")).toContainText("Not enough feedback yet");
+    await expect(ap.getByRole("button", { name: "Apply suggested weights" })).toBeDisabled();
     await admin.close(); await finder.ctx.close();
   });
 });

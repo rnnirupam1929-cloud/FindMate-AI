@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 5 * 1024 * 1024
 
     admin_emails: str = ""  # comma separated; get the admin role on first sign-in
+    # Image embeddings: "none" = basic colour histogram (default), "openclip" = CLIP model (needs requirements-ai.txt
+    # and a one-time weights download). If the model fails to load we fall back to the histogram and log a warning.
+    embedding_backend: str = "none"
+    openclip_model: str = "ViT-B-32"
+    openclip_pretrained: str = "laion2b_s34b_b79k"
     match_threshold: float = 35.0
     agent_timeout_seconds: float = 10.0
     agent_max_retries: int = 1

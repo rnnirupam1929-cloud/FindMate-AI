@@ -25,5 +25,5 @@ export const ACTIVITY_LABELS: Record<string, string> = {
   recovery_completed: "Completed a recovery", match_feedback: "Match feedback recorded",
 };
 export const SCORE_LABELS: Record<string, string> = {
-  visual: "Visual (basic colour)", description: "Description", category: "Category", location: "Location", date: "Date",
+  visual: "Photo", description: "Description", category: "Category", location: "Location", date: "Date",
 };

@@ -1,0 +1,4 @@
+# Optional: neural image matching. Then set EMBEDDING_BACKEND=openclip
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.2
+open_clip_torch>=2.24

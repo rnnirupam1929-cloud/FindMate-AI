@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.agents.learning import LearningAgent
+from app.agents.learning import LearningAgent, active_weights
 from app.api.common import log, paginate, report_out
 from app.core.database import get_db
 from app.core.security import require_admin, require_staff
@@ -106,3 +106,25 @@ def update_institution(iid: str, body: InstitutionIn, user: Profile = Depends(re
         setattr(i, k, v)
     db.commit()
     return i
+
+
+@router.get("/learning")
+def learning(user: Profile = Depends(require_admin), db: Session = Depends(get_db)):
+    """Feedback summary and a weight proposal. Read-only: nothing changes until Apply is called."""
+    return {"feedback": LearningAgent(db).summary(), **LearningAgent(db).propose()}
+
+
+@router.post("/learning/apply")
+def learning_apply(user: Profile = Depends(require_admin), db: Session = Depends(get_db)):
+    try:
+        w = LearningAgent(db).apply(user.id)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    log(db, user.id, "weights_applied_by_admin", "settings", None)
+    return {"weights": w}
+
+
+@router.post("/learning/reset")
+def learning_reset(user: Profile = Depends(require_admin), db: Session = Depends(get_db)):
+    LearningAgent(db).reset(user.id)
+    return {"weights": active_weights(db)}

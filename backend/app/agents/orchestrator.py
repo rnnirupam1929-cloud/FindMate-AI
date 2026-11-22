@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.agents.base import AgentRunner
 from app.agents.location import LocationAgent, LocationIn
+from app.agents.learning import active_weights
 from app.agents.matching_agent import MatchIn, MatchingAgent
 from app.agents.notification import NotificationAgent, NotifyIn
 from app.agents.search import SearchAgent, SearchIn
@@ -66,7 +67,8 @@ class Orchestrator:
                 b_lat=found.latitude, b_lng=found.longitude, b_name=found.location_name))
             res = runner.call(MatchingAgent(self.db), MatchIn(
                 lost=_view(lost), found=_view(found),
-                location_score=loc.score if loc else None, location_provided=loc is not None))
+                location_score=loc.score if loc else None, location_provided=loc is not None,
+                weights=active_weights(self.db)))
             if res is None or not res.plausible or res.score is None:
                 continue
             m = Match(lost_report_id=lost.id, found_report_id=found.id, score=res.score,

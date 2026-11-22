@@ -13,6 +13,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+CLIP_FLOOR, CLIP_CEIL = 0.55, 0.95
 DEFAULT_WEIGHTS = {"visual": 0.35, "description": 0.25, "category": 0.15, "location": 0.15, "date": 0.10}
 
 CATEGORIES = ["electronics", "wallet_cards", "keys", "bags", "clothing", "books_stationery",
@@ -32,9 +33,24 @@ def _stem(w: str) -> str:
     return w
 
 
+# People describe the same thing differently. Mapped on stemmed words. This is a hand-made lexicon, not a neural model.
+SYNONYMS = {"backpack": "bag", "rucksack": "bag", "knapsack": "bag", "mobile": "phone", "cellphone": "phone",
+            "smartphone": "phone", "earbud": "earphone", "headphone": "earphone", "airpod": "earphone", "flask": "bottle",
+            "tumbler": "bottle", "sipper": "bottle", "purse": "wallet", "jacket": "hoodie", "sweatshirt": "hoodie",
+            "spectacle": "glass", "eyeglass": "glass", "spec": "glass", "steel": "metal", "aluminium": "metal",
+            "aluminum": "metal", "stainles": "metal", "adapter": "charger", "cable": "charger", "umbrela": "umbrella",
+            "brolly": "umbrella", "idcard": "id", "pendrive": "usb", "flashdrive": "usb"}
+
+
 def tokens(text: str | None) -> list[str]:
     words = re.findall(r"[a-z0-9]+", (text or "").lower())
-    return [_stem(w) for w in words if w not in STOP and len(w) > 1]
+    out = [_stem(w) for w in words if w not in STOP and len(w) > 1]
+    return [SYNONYMS.get(t, t) for t in out]
+
+
+def _trigrams(toks: list[str]) -> list[str]:
+    s = "".join(f"_{t}_" for t in sorted(set(toks)))
+    return [s[i:i + 3] for i in range(len(s) - 2)]
 
 
 def cosine(a: list[str], b: list[str]) -> float:
@@ -94,7 +110,9 @@ def description_similarity(a: ReportView, b: ReportView) -> float | None:
     parts: list[tuple[float, float]] = []  # (weight, similarity)
     ta, tb = tokens(f"{a.title} {a.description}"), tokens(f"{b.title} {b.description}")
     if ta and tb:
-        parts.append((0.6, min(1.0, cosine(ta, tb) * 1.4)))
+        # Word overlap, plus character trigrams so small spelling differences ("bottel") still count.
+        lexical = 0.75 * cosine(ta, tb) + 0.25 * cosine(_trigrams(ta), _trigrams(tb))
+        parts.append((0.6, min(1.0, lexical * 1.4)))
     ca, cb = norm_color(a.color), norm_color(b.color)
     if ca and cb:
         parts.append((0.25, 1.0 if ca == cb else 0.0))
@@ -143,9 +161,16 @@ def visual_similarity(a: ReportView, b: ReportView) -> float | None:
         return None
     if fa.get("kind") == "embedding" and fb.get("kind") == "embedding":  # future CLIP path
         va, vb = fa["vector"], fb["vector"]
+        if len(va) != len(vb):
+            return None
         dot = sum(x * y for x, y in zip(va, vb))
         n = math.sqrt(sum(x * x for x in va)) * math.sqrt(sum(y * y for y in vb))
-        return max(0.0, dot / n) if n else None
+        if not n:
+            return None
+        cos = dot / n
+        # Raw CLIP cosine for unrelated photos is already ~0.5, so stretch [CLIP_FLOOR, CLIP_CEIL] to [0, 1].
+        # These two constants are starting points and should be tuned on real FindMate data.
+        return min(1.0, max(0.0, (cos - CLIP_FLOOR) / (CLIP_CEIL - CLIP_FLOOR)))
     ha, hb = fa.get("histogram"), fb.get("histogram")
     if ha and hb and len(ha) == len(hb):
         return sum(min(x, y) for x, y in zip(ha, hb))  # histogram intersection, histograms sum to 1
@@ -200,7 +225,10 @@ def score_pair(lost: ReportView, found: ReportView, weights: dict[str, float] | 
         reasons.append("Found around the time it was lost." if dt >= 0.7 else
                        "Found some days after it was lost." if dt > 0 else "Found before it was reported lost.")
     if parts["visual"] is not None:
-        reasons.append(f"Image colour profile similarity: {round(parts['visual'] * 100)}% (basic comparison, not AI recognition).")
+        if (lost.visual_features or {}).get("kind") == "embedding":
+            reasons.append(f"Photo similarity (OpenCLIP): {round(parts['visual'] * 100)}%.")
+        else:
+            reasons.append(f"Image colour profile similarity: {round(parts['visual'] * 100)}% (basic comparison, not AI recognition).")
     else:
         reasons.append("Visual comparison skipped: an image is missing on one of the reports.")
     return MatchResult(score, parts, reasons, list(available))

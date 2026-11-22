@@ -7,6 +7,12 @@ export interface ReportPayload {
   additional_details?: string | null; private_clues?: string | null; verification_questions?: string[] | null;
 }
 
+export interface LearningInfo {
+  status: "insufficient_data" | "ready"; positive_examples: number; negative_examples: number; needed_per_class: number;
+  current: Record<string, number>; defaults: Record<string, number>; proposal: Record<string, number> | null;
+  feedback: Record<string, { count: number; avg_score: number }>;
+}
+
 export const Api = {
   me: () => api<Profile>("/me"),
   updateMe: (b: { full_name?: string; institution_id?: string }) => api<Profile>("/me", { method: "PATCH", body: b }),
@@ -49,6 +55,9 @@ export const Api = {
 
   admin: {
     stats: () => api<AdminStats>("/admin/stats"),
+    learning: () => api<LearningInfo>("/admin/learning"),
+    applyWeights: () => api<{ weights: Record<string, number> }>("/admin/learning/apply", { method: "POST" }),
+    resetWeights: () => api<{ weights: Record<string, number> }>("/admin/learning/reset", { method: "POST" }),
     users: (q = "") => api<Page<Profile & { is_suspended: boolean }>>(`/admin/users?q=${encodeURIComponent(q)}`),
     patchUser: (id: string, b: { role?: string; is_suspended?: boolean }) => api<Profile & { is_suspended: boolean }>(`/admin/users/${id}`, { method: "PATCH", body: b }),
     reports: (flagged: boolean) => api<Page<Report>>(`/admin/reports?flagged=${flagged}`),
