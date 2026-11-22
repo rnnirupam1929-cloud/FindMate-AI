@@ -48,7 +48,8 @@ export function AppLayout() {
         {links}
         <div className="mt-auto border-t border-stone-200 pt-4">
           <p className="truncate px-2 text-sm font-bold">{user?.full_name || "Your account"}</p>
-          <p className="truncate px-2 text-xs capitalize text-stone">{user?.email} · {user?.role.replace("_", " ")}</p>
+          <p className="truncate px-2 text-xs text-stone">{user?.email}</p>
+          <p className="px-2 text-xs capitalize text-stone">{user?.role.replace("_", " ")}</p>
           <Button variant="ghost" size="sm" className="mt-2 w-full justify-start" onClick={async () => { await signOut(); nav("/"); }}><LogOut className="h-4 w-4" />Log out</Button>
         </div>
       </aside>

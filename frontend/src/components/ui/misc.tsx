@@ -34,8 +34,8 @@ const TONES: Record<string, string> = {
   suggested: "bg-mint text-forest", verifying: "bg-sun-100 text-ink", confirmed: "bg-forest text-white", dismissed: "bg-stone-200 text-ink", flagged: "bg-[#f4dcd9] text-danger",
   lost: "bg-[#f4e6d4] text-[#7a4a12]", found: "bg-mint text-forest",
 };
-export const StatusBadge = ({ value, className }: { value: string; className?: string }) => (
-  <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize", TONES[value] ?? "bg-stone-200", className)}>{value.replace("_", " ")}</span>
+export const StatusBadge = ({ value, className, children }: { value: string; className?: string; children?: ReactNode }) => (
+  <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize", TONES[value] ?? "bg-stone-200", className)}>{children ?? value.replace("_", " ")}</span>
 );
 
 export const PageHeader = ({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) => (

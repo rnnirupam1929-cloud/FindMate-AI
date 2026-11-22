@@ -11,7 +11,6 @@ import { MapPicker } from "@/components/MapView";
 import { Button } from "@/components/ui/Button";
 import { Input, Select, Textarea } from "@/components/ui/Field";
 import { PageHeader, Spinner, ErrorState } from "@/components/ui/misc";
-import { ReportThumb } from "@/components/ReportThumb";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
 import { Api, type ReportPayload } from "@/services/endpoints";
@@ -46,6 +45,7 @@ export function ReportWizard({ kind: kindProp }: { kind?: ReportKind }) {
   const inst = useQuery({ queryKey: ["institutions"], queryFn: Api.institutions });
   const draft = useQuery({ queryKey: ["report", draftIdParam], queryFn: () => Api.report(draftIdParam!), enabled: !!draftIdParam });
   const kind: ReportKind = (draft.data?.kind ?? kindProp ?? "lost");
+  const editing = !!draft.data && draft.data.status !== "draft";
 
   const [step, setStep] = useState(0);
   const [files, setFiles] = useState<File[]>([]);
@@ -57,6 +57,13 @@ export function ReportWizard({ kind: kindProp }: { kind?: ReportKind }) {
 
   const f = useForm<Values>({ resolver: zodResolver(schema), mode: "onTouched", defaultValues: { category: "", date: todayStr() } });
   const v = f.watch();
+  const [reviewPreview, setReviewPreview] = useState<string | null>(null);
+  useEffect(() => {
+    if (!files[0]) { setReviewPreview(null); return; }
+    const url = URL.createObjectURL(files[0]);
+    setReviewPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [files]);
 
   useEffect(() => {
     const d = draft.data;
@@ -96,6 +103,12 @@ export function ReportWizard({ kind: kindProp }: { kind?: ReportKind }) {
     setBusy("submit");
     try {
       const id = await persist(x);
+      if (editing) {
+        await qc.invalidateQueries();
+        toast.success("Changes saved. We've re-checked for matches.");
+        nav(`/reports/${id}`);
+        return;
+      }
       const r = await Api.submitReport(id);
       await qc.invalidateQueries();
       setDone(r);
@@ -123,7 +136,7 @@ export function ReportWizard({ kind: kindProp }: { kind?: ReportKind }) {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <PageHeader title={kind === "lost" ? "Report a lost item" : "Report a found item"} subtitle={kind === "lost" ? "The more detail you give, the better the match." : "Thanks for helping. You can keep identifying details private until someone proves ownership."} />
+      <PageHeader title={editing ? "Edit report" : kind === "lost" ? "Report a lost item" : "Report a found item"} subtitle={kind === "lost" ? "The more detail you give, the better the match." : "Thanks for helping. You can keep identifying details private until someone proves ownership."} />
       <ol className="mb-8 flex items-center gap-2" aria-label="Progress">
         {STEPS.map((s, i) => (
           <li key={s} className="flex flex-1 items-center gap-2" aria-current={i === step ? "step" : undefined}>
@@ -135,7 +148,11 @@ export function ReportWizard({ kind: kindProp }: { kind?: ReportKind }) {
       </ol>
       <p className="mb-4 text-sm font-semibold text-stone sm:hidden">Step {step + 1} of 3 · {STEPS[step]}</p>
 
-      <form noValidate onSubmit={f.handleSubmit(submit)} className="space-y-5">
+      <form noValidate className="space-y-5" onSubmit={(e) => {
+        // Pressing Enter on an earlier step moves forward instead of submitting the whole report.
+        if (step < 2) { e.preventDefault(); void next(); return; }
+        void f.handleSubmit(submit)(e);
+      }}>
         {step === 0 && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
             <Input label="Item name" required placeholder={kind === "lost" ? "e.g. Black Dell laptop" : "e.g. Blue water bottle"} error={f.formState.errors.title?.message} {...f.register("title")} />
@@ -182,8 +199,7 @@ export function ReportWizard({ kind: kindProp }: { kind?: ReportKind }) {
         {step === 2 && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4" data-testid="review-step">
             <div className="flex gap-4">
-              <ReportThumb report={{ images: [], category: v.category || "other", title: v.title }} className="hidden" />
-              {(files[0] || existing[0]) && <img src={files[0] ? URL.createObjectURL(files[0]) : existing[0].url} alt="Item" className="h-24 w-24 rounded-md object-cover" />}
+              {(reviewPreview || existing[0]) && <img src={reviewPreview ?? existing[0].url} alt="Item" className="h-24 w-24 rounded-md object-cover" />}
               <div><h2 className="text-lg font-bold">{v.title}</h2><p className="text-sm text-stone">{categoryLabel(v.category)}{v.color ? ` · ${v.color}` : ""}{v.brand ? ` · ${v.brand}` : ""}</p><p className="mt-1 text-sm">{v.description}</p></div>
             </div>
             <dl className="grid gap-3 border-t border-stone-300 pt-4 text-sm sm:grid-cols-2">
@@ -193,16 +209,16 @@ export function ReportWizard({ kind: kindProp }: { kind?: ReportKind }) {
               {kind === "found" && v.private_clues && <div className="sm:col-span-2"><dt className="font-semibold text-stone">Private clues (hidden from others)</dt><dd>{v.private_clues}</dd></div>}
               <div><dt className="font-semibold text-stone">Photos</dt><dd>{files.length + existing.length || "None"}</dd></div>
             </dl>
-            <p className="rounded-md bg-sun-100 px-3 py-2 text-xs">By submitting you confirm this report is genuine. Reports that look fake are flagged for review.</p>
+            {!editing && <p className="rounded-md bg-sun-100 px-3 py-2 text-xs">By submitting you confirm this report is genuine. Reports that look fake are flagged for review.</p>}
           </motion.div>
         )}
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-300 pt-5">
           <div className="flex gap-2">
             {step > 0 && <Button type="button" variant="secondary" onClick={() => setStep(step - 1)}><ArrowLeft className="h-4 w-4" />Back</Button>}
-            <Button type="button" variant="ghost" loading={busy === "draft"} onClick={saveDraft}>Save draft</Button>
+            {!editing && <Button type="button" variant="ghost" loading={busy === "draft"} onClick={saveDraft}>Save draft</Button>}
           </div>
-          {step < 2 ? <Button type="button" onClick={next}>Continue<ArrowRight className="h-4 w-4" /></Button> : <Button type="submit" loading={busy === "submit"}>Submit report</Button>}
+          {step < 2 ? <Button key="continue" type="button" onClick={next}>Continue<ArrowRight className="h-4 w-4" /></Button> : <Button key="submit" type="submit" loading={busy === "submit"}>{editing ? "Save changes" : "Submit report"}</Button>}
         </div>
       </form>
     </div>

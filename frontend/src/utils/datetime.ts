@@ -1,6 +1,8 @@
 /** Combine a yyyy-mm-dd date and optional HH:MM time (local) into an ISO string. */
 export function toIso(date: string, time?: string) {
-  return new Date(`${date}T${time || "12:00"}:00`).toISOString();
+  const d = new Date(`${date}T${time || "12:00"}:00`);
+  // Never send a moment in the future: reporting "today" before noon with no time given means "just now".
+  return (d.getTime() > Date.now() ? new Date() : d).toISOString();
 }
 export function splitIso(iso: string | null | undefined) {
   if (!iso) return { date: "", time: "" };

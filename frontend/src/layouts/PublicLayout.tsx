@@ -2,6 +2,7 @@ import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import { Link, Outlet } from "react-router-dom";
 import { Logo } from "@/components/Logo";
+import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -30,6 +31,7 @@ export function PublicLayout() {
         )}
       </header>
       <Outlet />
+      <Footer />
     </div>
   );
 }
