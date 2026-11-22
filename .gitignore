@@ -4,10 +4,12 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
+.vercel/
 .env
 .env.*
 !.env.example
 *.db
+*.tsbuildinfo
 backend/storage/
 frontend/test-results/
 frontend/playwright-report/

@@ -38,10 +38,19 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _guard(self):
-        if self.app_env == "production" and self.auth_mode == "local":
-            raise ValueError("AUTH_MODE=local is not allowed when APP_ENV=production")
-        if self.app_env == "production" and self.supabase_jwt_secret.startswith("local-dev"):
-            raise ValueError("Set SUPABASE_JWT_SECRET in production")
+        if self.auth_mode not in {"local", "supabase"}:
+            raise ValueError("AUTH_MODE must be 'local' or 'supabase'")
+        if self.storage_backend not in {"local", "supabase"}:
+            raise ValueError("STORAGE_BACKEND must be 'local' or 'supabase'")
+        if self.app_env == "production":
+            if self.auth_mode != "supabase":
+                raise ValueError("AUTH_MODE=supabase is required when APP_ENV=production")
+            if not self.database_url.startswith(("postgresql://", "postgresql+psycopg2://")):
+                raise ValueError("A persistent PostgreSQL DATABASE_URL is required in production")
+            if self.storage_backend != "supabase":
+                raise ValueError("STORAGE_BACKEND=supabase is required in production")
+            if not self.supabase_url or not self.supabase_service_role_key:
+                raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required in production")
         return self
 
     @property

@@ -1,6 +1,6 @@
 """Authentication and role-based access control.
 
-Production: verifies Supabase JWTs (HS256, signed with the project's JWT secret).
+Production: verifies Supabase JWTs using the project's legacy secret or signing-key JWKS.
 Local dev:  the same verification path, tokens minted by /api/auth/dev/* (AUTH_MODE=local only).
 The user's role is always read from the `profiles` table, never from token claims the user can influence.
 """
@@ -10,6 +10,7 @@ import os
 import re
 import time
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 
 import jwt
 from fastapi import Depends, HTTPException, Request, status
@@ -22,6 +23,16 @@ from app.core.database import get_db
 from app.models import Institution, Profile
 
 bearer = HTTPBearer(auto_error=False)
+
+
+@lru_cache(maxsize=8)
+def _jwks_client(issuer: str) -> jwt.PyJWKClient:
+    return jwt.PyJWKClient(
+        f"{issuer}/.well-known/jwks.json",
+        cache_jwk_set=True,
+        lifespan=600,
+        timeout=5,
+    )
 
 
 def hash_password(password: str, salt: bytes | None = None) -> str:
@@ -47,10 +58,39 @@ def issue_dev_token(user_id: str, email: str, ttl_minutes: int = 60 * 24) -> str
 def decode_token(token: str) -> dict:
     s = get_settings()
     try:
+        algorithm = jwt.get_unverified_header(token).get("alg")
+        if s.auth_mode == "supabase":
+            if not s.supabase_url:
+                raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Supabase authentication is not configured.")
+            issuer = f"{s.supabase_url.rstrip('/')}/auth/v1"
+            if algorithm == "HS256":
+                if not s.supabase_jwt_secret or s.supabase_jwt_secret.startswith("local-dev"):
+                    raise HTTPException(
+                        status.HTTP_503_SERVICE_UNAVAILABLE,
+                        "Set SUPABASE_JWT_SECRET for legacy HS256 tokens or use Supabase asymmetric signing keys.",
+                    )
+                key = s.supabase_jwt_secret
+            elif algorithm in {"ES256", "RS256"}:
+                key = _jwks_client(issuer).get_signing_key_from_jwt(token).key
+            else:
+                raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid authentication token.")
+            return jwt.decode(
+                token,
+                key,
+                algorithms=[algorithm],
+                audience="authenticated",
+                issuer=issuer,
+            )
+        if algorithm != "HS256":
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid authentication token.")
         return jwt.decode(token, s.supabase_jwt_secret, algorithms=["HS256"], audience="authenticated")
+    except HTTPException:
+        raise
     except jwt.ExpiredSignatureError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Your session has expired. Please sign in again.")
-    except jwt.PyJWTError:
+    except jwt.PyJWKClientConnectionError:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Could not reach Supabase to verify the signing key.")
+    except (jwt.PyJWTError, jwt.PyJWKClientError):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid authentication token.")
 
 

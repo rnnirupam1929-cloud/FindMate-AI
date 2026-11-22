@@ -46,7 +46,13 @@ export async function signIn(email: string, password: string) {
 
 export async function resetPassword(email: string) {
   if (!supabase) throw new Error("Password reset is handled by Supabase Auth and is unavailable in local development mode.");
-  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + "/login" });
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + "/reset-password" });
+  if (error) throw new Error(error.message);
+}
+
+export async function updatePassword(password: string) {
+  if (!supabase) throw new Error("Password reset is handled by Supabase Auth and is unavailable in local development mode.");
+  const { error } = await supabase.auth.updateUser({ password });
   if (error) throw new Error(error.message);
 }
 

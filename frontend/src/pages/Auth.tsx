@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { MailCheck } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { z } from "zod";
@@ -8,7 +8,7 @@ import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
 import { useAuth } from "@/hooks/useAuth";
-import { resetPassword, usingSupabase } from "@/services/auth";
+import { resetPassword, supabase, updatePassword, usingSupabase } from "@/services/auth";
 
 function Shell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
@@ -100,6 +100,70 @@ export function ForgotPasswordPage() {
         </form>
       )}
       <p className="mt-4 text-sm"><Link to="/login" className="text-leaf hover:underline">Back to log in</Link></p>
+    </Shell>
+  );
+}
+
+const resetSchema = z.object({
+  password: z.string().min(8, "Use at least 8 characters.").max(128),
+});
+
+export function ResetPasswordPage() {
+  const nav = useNavigate();
+  const [checking, setChecking] = useState(true);
+  const [hasSession, setHasSession] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const f = useForm<z.infer<typeof resetSchema>>({ resolver: zodResolver(resetSchema) });
+
+  useEffect(() => {
+    let active = true;
+    if (!supabase) {
+      setChecking(false);
+      return () => { active = false; };
+    }
+    void supabase.auth.getSession().then(({ data, error: sessionError }) => {
+      if (!active) return;
+      if (sessionError) setError(sessionError.message);
+      setHasSession(Boolean(data.session));
+      setChecking(false);
+    }).catch((sessionError: Error) => {
+      if (!active) return;
+      setError(sessionError.message);
+      setChecking(false);
+    });
+    return () => { active = false; };
+  }, []);
+
+  if (!usingSupabase) {
+    return <Shell title="Password reset unavailable" subtitle="Password recovery requires Supabase Auth to be configured.">
+      <Button asChild className="w-full" variant="secondary"><Link to="/login">Go to log in</Link></Button>
+    </Shell>;
+  }
+  if (checking) return <Shell title="Checking reset link" subtitle="Please wait while we validate your password reset link.">
+    <p role="status">Checking your link...</p>
+  </Shell>;
+  if (!hasSession) {
+    return <Shell title="Reset link expired" subtitle="Request a new password reset link to continue.">
+      {error && <p className="mb-4 field-error" role="alert">{error}</p>}
+      <Button asChild className="w-full"><Link to="/forgot-password">Request a new link</Link></Button>
+    </Shell>;
+  }
+
+  return (
+    <Shell title="Choose a new password" subtitle="Use at least 8 characters for your new password.">
+      <form className="space-y-4" noValidate onSubmit={f.handleSubmit(async ({ password }) => {
+        setError(null);
+        try {
+          await updatePassword(password);
+          nav("/dashboard", { replace: true });
+        } catch (e) {
+          setError((e as Error).message);
+        }
+      })}>
+        <Input label="New password" type="password" autoComplete="new-password" error={f.formState.errors.password?.message} {...f.register("password")} />
+        {error && <p className="field-error" role="alert">{error}</p>}
+        <Button type="submit" className="w-full" loading={f.formState.isSubmitting}>Save new password</Button>
+      </form>
     </Shell>
   );
 }

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -8,9 +8,19 @@ import { MatchCard } from "@/components/MatchCard";
 import { RequireRole } from "@/components/Guards";
 import { ConfirmDialog } from "@/components/ui/Dialog";
 import { ToastProvider } from "@/hooks/useToast";
+import { ResetPasswordPage } from "@/pages/Auth";
 import type { Match, Report } from "@/types";
 
+const getSessionMock = vi.hoisted(() => vi.fn());
+const updatePasswordMock = vi.hoisted(() => vi.fn());
+
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "1", role: "student", email: "a@b.c", full_name: "A" }, loading: false }) }));
+vi.mock("@/services/auth", () => ({
+  resetPassword: vi.fn(),
+  supabase: { auth: { getSession: getSessionMock } },
+  updatePassword: updatePasswordMock,
+  usingSupabase: true,
+}));
 
 const report = (kind: "lost" | "found", over: Partial<Report> = {}): Report => ({
   id: kind, kind, title: `${kind} bottle`, category: "water_bottles", description: "d", color: "blue", brand: null, location_name: "Library", latitude: null, longitude: null,
@@ -72,5 +82,29 @@ describe("RequireRole", () => {
     render(<MemoryRouter initialEntries={["/admin"]}><Routes><Route element={<RequireRole roles={["admin"]} />}><Route path="/admin" element={<p>secret</p>} /></Route></Routes></MemoryRouter>);
     expect(screen.getByRole("alert")).toHaveTextContent("Access restricted");
     expect(screen.queryByText("secret")).not.toBeInTheDocument();
+  });
+});
+
+describe("ResetPasswordPage", () => {
+  it("updates the password only when a recovery session is present", async () => {
+    getSessionMock.mockResolvedValue({ data: { session: {} }, error: null });
+    updatePasswordMock.mockClear();
+    updatePasswordMock.mockResolvedValue(undefined);
+    wrap(<ResetPasswordPage />);
+
+    await userEvent.type(await screen.findByLabelText("New password"), "new-password-123");
+    await userEvent.click(screen.getByRole("button", { name: "Save new password" }));
+
+    await waitFor(() => expect(updatePasswordMock).toHaveBeenCalledWith("new-password-123"));
+  });
+
+  it("does not show the password form when the recovery session is missing", async () => {
+    getSessionMock.mockResolvedValue({ data: { session: null }, error: null });
+    updatePasswordMock.mockClear();
+    wrap(<ResetPasswordPage />);
+
+    expect(await screen.findByRole("link", { name: "Request a new link" })).toHaveAttribute("href", "/forgot-password");
+    expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
+    expect(updatePasswordMock).not.toHaveBeenCalled();
   });
 });

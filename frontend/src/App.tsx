@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/misc";
 import { AppLayout } from "@/layouts/AppLayout";
 import { PublicLayout } from "@/layouts/PublicLayout";
-import { ForgotPasswordPage, LoginPage, SignupPage } from "@/pages/Auth";
+import { ForgotPasswordPage, LoginPage, ResetPasswordPage, SignupPage } from "@/pages/Auth";
 import { LandingPage } from "@/pages/Landing";
 
 // Heavier pages (maps, admin tables) are split out so the landing page loads fast.
@@ -44,6 +44,7 @@ export function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
           <Route element={<RequireAuth />}>
             <Route element={<AppLayout />}>

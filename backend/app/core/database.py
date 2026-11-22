@@ -1,3 +1,5 @@
+import os
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
@@ -17,6 +19,8 @@ def make_engine(url: str):
             kwargs["poolclass"] = StaticPool
     else:
         kwargs["pool_pre_ping"] = True
+        if os.getenv("VERCEL") == "1":
+            kwargs.update(pool_size=1, max_overflow=0, pool_recycle=300)
     eng = create_engine(url, **kwargs)
     if url.startswith("sqlite"):
         from sqlalchemy import event

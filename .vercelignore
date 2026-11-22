@@ -1,0 +1,12 @@
+.env
+.env.*
+**/.env
+**/.env.*
+**/*.db
+backend/storage/
+**/__pycache__/
+**/.pytest_cache/
+**/.venv/
+frontend/node_modules/
+frontend/dist/
+**/*.tsbuildinfo
