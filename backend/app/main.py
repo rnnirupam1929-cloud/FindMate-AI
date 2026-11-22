@@ -14,15 +14,18 @@ from app.models import Institution
 log = logging.getLogger("findmate")
 
 SEED_INSTITUTIONS = [
-    # Coordinates are approximate placeholders; edit them in the admin dashboard.
-    dict(name="Dayananda Sagar University", slug="dsu", city="Bengaluru", latitude=12.8625, longitude=77.4375),
+    dict(name="Dayananda Sagar University", slug="dsu", city="Bengaluru", latitude=12.6614291, longitude=77.4508298),
 ]
 
 
 def seed(db):
     for data in SEED_INSTITUTIONS:
-        if not db.scalars(select(Institution).where(Institution.slug == data["slug"])).first():
+        institution = db.scalars(select(Institution).where(Institution.slug == data["slug"])).first()
+        if institution is None:
             db.add(Institution(**data))
+        elif institution.latitude == 12.8625 and institution.longitude == 77.4375:
+            institution.latitude = data["latitude"]
+            institution.longitude = data["longitude"]
     db.commit()
 
 

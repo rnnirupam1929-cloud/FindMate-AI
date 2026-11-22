@@ -172,5 +172,9 @@ begin
 end $$;
 
 insert into institutions (name, slug, city, latitude, longitude)
-values ('Dayananda Sagar University', 'dsu', 'Bengaluru', 12.8625, 77.4375)  -- approximate; edit in admin
+values ('Dayananda Sagar University', 'dsu', 'Bengaluru', 12.6614291, 77.4508298)
 on conflict (slug) do nothing;
+
+update institutions
+set latitude = 12.6614291, longitude = 77.4508298
+where slug = 'dsu' and latitude = 12.8625 and longitude = 77.4375;

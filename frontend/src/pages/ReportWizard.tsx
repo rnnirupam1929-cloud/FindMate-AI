@@ -173,7 +173,7 @@ export function ReportWizard({ kind: kindProp }: { kind?: ReportKind }) {
             <Input label={kind === "lost" ? "Last seen location" : "Where did you find it?"} required placeholder="e.g. Main library, 2nd floor" error={f.formState.errors.location_name?.message} {...f.register("location_name")} />
             <div>
               <span className="label">Mark the approximate spot (optional)</span>
-              <MapPicker value={coords} center={inst.data?.find((i) => i.id === user?.institution_id) ? { latitude: inst.data.find((i) => i.id === user?.institution_id)!.latitude ?? 12.8625, longitude: inst.data.find((i) => i.id === user?.institution_id)!.longitude ?? 77.4375 } : null} onChange={setCoords} />
+              <MapPicker value={coords} center={inst.data?.find((i) => i.id === user?.institution_id) ? { latitude: inst.data.find((i) => i.id === user?.institution_id)!.latitude ?? 12.6614291, longitude: inst.data.find((i) => i.id === user?.institution_id)!.longitude ?? 77.4508298 } : null} onChange={setCoords} />
               <p className="hint">Click the map to drop a pin. Other people only ever see an approximate area. Don't mark your home or other private places.</p>
               {coords && <Button type="button" variant="link" size="sm" onClick={() => setCoords(null)}>Clear pin</Button>}
             </div>
